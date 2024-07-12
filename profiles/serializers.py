@@ -4,6 +4,9 @@ from .models import *
 from datetime import datetime, timedelta
 
 
+
+
+
 # Serializers define the API representation.
 class ProfileSerializer(serializers.ModelSerializer):
 
@@ -15,12 +18,90 @@ class ProfileSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'email',
-            'companyUrl',
-            'credits',
-            'subscriptionPlan',
-            'build', 'ready', 'failed', 'pending',
+            
 
         ]
+
+class TestSeriesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TestSeries
+        fields = [
+            'name', 'testInformation','image','tests', 'id']
+        
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        rp = {}
+        rp['name'] = representation['name']
+        rp['id'] = instance.id
+        rp['testInformation'] = representation['testInformation']
+        rp['image'] = representation['image']
+        rp['tests'] = []
+        for test in representation['tests']:
+            rp['tests'].append({ 'name':Test.objects.get(id=test).name, 
+                                'id':Test.objects.get(id=test).id, 
+                                'attempted':   self.context['request'].user.profile.testsAttempted.filter(id=test).exists()})
+
+        return rp
+
+        
+
+class practicalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model =  PracticalSimulation
+        fields = [
+            'name', 'information','image','subject', 'id']
+            
+
+            
+
+class TestQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TestQuestion
+        fields = [
+            'question','image','answer','category','subject','correct_option','topic', 'solutionVideo','options'
+            
+        ]
+    
+    
+    
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        
+        
+        rp = {}
+        rp['question'] = representation['question']
+        rp['img'] = representation['image']
+        rp['correct'] = representation['correct_option']
+        rp['solution'] = representation['answer']
+        rp['solutionVideo'] =  representation['solutionVideo']
+        rp['userAnswer'] = ''
+        rp['options'] = representation['options']
+        rp['id'] = instance.id
+        rp['options'] = rp['options'].split('|')
+        rp['subject']  = representation['subject']
+        rp['topic'] = representation['topic']
+
+
+        return rp
+
+class  SubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model =  Subject
+        fields = [
+            'name', 'topics'
+            
+        ]
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        rp = {}
+        rp['name'] = representation['name']
+        rp['id'] = instance.id
+        rp['topics'] = []
+        for topic in representation['topics']:
+            rp['topics'].append({ 'name':Topic.objects.get(id=topic).name, 'id':Topic.objects.get(id=topic).id})
+
+        return rp
 
 
 class ProfileMiniSerializer(serializers.ModelSerializer):
@@ -31,8 +112,28 @@ class ProfileMiniSerializer(serializers.ModelSerializer):
             'username',
             'avatar',
             'email',
+            'momentumPoints',
+            'testsAttempted',
+            'attempted',
+            'bookmarked'
+
 
         ]
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        rp = {}
+        rp['username'] = representation['username']
+        rp['avatar'] = representation['avatar']
+        rp['email'] = representation['email']
+        rp['momentumPoints'] = representation['momentumPoints']
+        rp['testsAttempted'] =  instance.testsAttempted.count()
+        rp['attempted'] = instance.attempted.count()
+        rp['bookmarked'] =  instance.bookmarked. count()
+
+        
+        return rp
+    
+
 
 
 class ProfileEditSerializer(serializers.ModelSerializer):
@@ -43,119 +144,4 @@ class ProfileEditSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'email',
-            'companyUrl', 'created', 'email_confirmed'
-
-        ]
-
-
-class ChatbotMiniSerializer(serializers.ModelSerializer):
-    interactions = serializers.SerializerMethodField()
-
-    def get_interactions(self, obj):
-        print(obj.logs)
-        return obj.logs.count()
-
-    class Meta:
-        model = Chatbot
-        fields = [
-            'name',
-            'created',
-            'status',
-            'website',
-            'id',
-            'interactions'
-
-        ]
-
-
-class ChatbotAnalyticalSerializer(serializers.ModelSerializer):
-    interactions = serializers.SerializerMethodField()
-
-    def get_interactions(self, obj):
-        intr = {
-            'total': obj.logs.count(),
-            'last_week': {},
-            'last_week_total': 0,
-            'week_before_last': 0,
-
-            'growth': 0
-
-        }
-
-        last7Days = datetime.now().date() - timedelta(days=7)
-        last14Days = datetime.now().date() - timedelta(days=14)
-        for i in obj.logs.all():
-
-            if i.time.date() > last7Days:
-
-                intr['last_week_total'] += 1
-                try:
-                    intr['last_week'][str(i.time.date())] += 1
-                except:
-                    intr['last_week'][str(i.time.date())] = 1
-            if last14Days < i.time.date() and i.time.date() < last7Days:
-                intr['week_before_last'] += 1
-
-        if intr['week_before_last'] > 0:
-            intr['growth'] = (len(intr['last_week']) / intr['week_before_last']
-                              ) * 100
-        else:
-            intr['growth'] = 100
-
-        return intr
-
-    class Meta:
-        model = Chatbot
-        fields = [
-            'name',
-            'created',
-            'status',
-            'website',
-            'id',
-            'interactions'
-
-        ]
-
-
-class ChatbotEditSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Chatbot
-        fields = [
-            'name',
-            'created',
-            'status',
-            'website',
-            'avatar',
-            'caching', 'chatbotData', 'tokenID', 'article'
-
-
-        ]
-
-
-class ChatbotHostSerializer(serializers.ModelSerializer):
-    sessionID = serializers.SerializerMethodField()
-
-    def get_sessionID(self, obj):
-        return ''
-
-    class Meta:
-        model = Chatbot
-        fields = [
-            'name',
-            'website',
-            'avatar', 'caching', 'chatbotHostData', 'sessionID'
-
-        ]
-
-
-class HelpdeskTicketSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = IssueTicket
-        fields = [
-            'logs', 'time',
-            'user', 'bot',
-            'state',
-
-        ]
+              'created', 'email_confirmed']

@@ -14,24 +14,18 @@ from django.views.decorators.csrf import csrf_exempt
 from .socialLogin import TokenLoginConfirm
 
 
-router = routers.DefaultRouter()
+router = routers.DefaultRouter()    
 
 router.register(r'account', ProfileMiniViewSet, basename='Profile')
 router.register(r'accountSummary', ProfileEditViewSet, basename='Profile')
-router.register(r'chatbots', ChatbotMiniViewset, basename="mybots")
+router.register(r'subjects', SubjectViewSet, basename='Profile')
 
-router.register(r'chatbotsDashboard',
-                ChatbotAnalyticalViewset, basename="mybots")
-router.register(r'chatbotsEdit/(?P<id>.*)',
-                ChatbotEditViewset, basename="editBot")
-router.register(r'chatbotsDelete/(?P<id>.*)',
-                chatbotDeleteViewset, basename="editBot")
-router.register(r'chatbotHost/(?P<id>.*)',
-                chatbotHostViewset, basename='chatbotHost')
+router.register(r'questions', QuestionViewSet, basename='Question')
+router.register(r'testSeries', testSeriesViewSet, basename='Answer')
+router.register(r'practicals',  practicalViewSet, basename='Answer')
 
 
-router.register(r'helpdeskTickets', HelpdeskTicketViewset,
-                basename='HelpdeskTicket')
+
 
 
 router.register(r'blogs',     BlogViewset, basename='Blog')
@@ -39,7 +33,10 @@ router.register(r'blog',     BlogPostViewset, basename='BlogPost')
 
 
 urlpatterns = [
-    path('', RedirectToFrontEnd, name="redirectToFrontend"),
+    path('', LandingPage, name="landingPage"),
+    path('blogs/<int:pk>/', BlogPage, name="blogPage"),
+    path('blog/<int:pk>/', BlogDetail, name="blogDetail"),
+
     path('api-info/', include(router.urls)),
 
 
@@ -47,18 +44,11 @@ urlpatterns = [
     path('auth/login/', csrf_exempt(ObtainAuthToken.as_view())),
     path('auth/logout/', Logout.as_view()),
     path('api-info/register/', RegisterUserView.as_view()),
+    path('api-info/analysis/', Analysis.as_view()),
     path('api-info/updateProfile/', ProfileUpdateUserVew.as_view()),
     path('api-info/validateToken/', ValidateToken.as_view()),
-    path('api-info/saveChatbot/',  ChatbotUpdate.as_view()),
-    path('api-info/logSession/',     logSession.as_view()),
-    path('api-info/saveHelpdeskTicket/',     OpenHelpdeskTicket.as_view()),
+
     path('api-info/sendEmail/',     sendEmail.as_view()),
-    path('api-info/sentimentAnalysis/',     SentimentAnalysis.as_view()),
-
-    path('api-info/autoRespond/',    AutoRespond.as_view()),
-
-
-
 
     # Google Signin URLs
     path('accounts/login/', RedirectToFrontEnd, name='google_login'),

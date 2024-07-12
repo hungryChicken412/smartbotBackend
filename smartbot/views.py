@@ -1,4 +1,5 @@
 
+
 from .tokens import account_activation_token
 import json
 from rest_framework.views import APIView
@@ -17,7 +18,12 @@ from django.core.mail import send_mail
 import uuid
 from .utils import *
 import requests
-import numpy as np
+import numpy as np 
+from django.core.paginator import Paginator
+
+import sys 
+sys.path.append("..") 
+from blog.models import BlogPost
 # Register user rest api view
 
 
@@ -40,6 +46,7 @@ class RegisterUserView(APIView):
             username = data['username']
 
             if User.objects.filter(email=email).exists():
+                
                 return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
             if password != password2:
@@ -71,13 +78,16 @@ class RegisterUserView(APIView):
 
 
                         """
-                        user.email_user(subject, message)
+                        
+                        #user.email_user(subject, message)
+                        
 
                         if Profile.objects.filter(user=user).exists():
                             profile = Profile.objects.get(user=user)
                             # print(data['companyUrl'])
                             # profile.companyUrl = data['companyUrl'] if data['companyUrl'] != None else ''
                             profile.save()
+                        
 
                         if User.objects.filter(username=username).exists():
                             return Response({'success': 'User created successfully'},
@@ -152,86 +162,197 @@ class ValidateToken(APIView):
                 status=status.HTTP_400_BAD_REQUEST)
 
 
-class ChatbotUpdate(APIView):
-    permission_classes = (permissions.IsAuthenticated, )
+class Analysis(APIView):
+    permission_classes = (permissions.AllowAny,)
+    
 
-    def post(self, request):
+    
+    def analyze_data(self, data):
+        print(data)
+        efficiency = 0;##(data['timetaken']) / data['totalTime']
+        
+        subject_analysis = self.analyze_subjects(data['subjectWise'])
+        totalCorrectEfficiency = data['correct'] / data['totalQuestions']
+        suggestions = []
+        if(totalCorrectEfficiency < 0.5):
+            suggestions = ["You need to revise everything, you got less than 50% correct."]
+        elif totalCorrectEfficiency < 0.7:
+            suggestions = ["You need to revise more, you got less than 70% correct."]
+        elif totalCorrectEfficiency < 0.8:
+            suggestions = ["You did good!"]
+        elif totalCorrectEfficiency >= 0.9:
+            suggestions = ["You did great! more than 90% correct!"]
 
-        data = request.data
-        data = json.loads(request.data['body'])
+        
+        
 
-        details = data['details']
+        
+        if efficiency > 0.9:
+            suggestions.append("Time management could be improved.")
+        else:
+            suggestions.append("Good time management. Keep it up!")
 
-        try:
-            chatbot = Chatbot.objects.get(id=data['id'], parent=request.user)
+        suggestions.extend(self.generate_suggestions(data, subject_analysis))
+        ## create a point system, so score is calculated based on the data
+        
+            # Point system
+        EfficiencyWeight = 50
+        CorrectnessWeight = 50
+        SubjectWeight = 10
+        TimeManagementWeight = -10  # Deduct points for poor time management
+        BonusWeight = 5
 
-            chatbot.chatbotData = request.data['body']
-            chatbot.status = details['status']
 
-            chatbot.save()
-        except Exception as e:
-            print(e)
-            chatbot = Chatbot.objects.create(
-                chatbotData=request.data['body'], parent=request.user, tokenID=str(uuid.uuid4()))
+        
+        # Calculate efficiency score
+        efficiencyScore = (1 - efficiency) * EfficiencyWeight if data['totalTime'] > 0 else 0
+        # Calculate correctness score
+        correctnessScore = (totalCorrectEfficiency * CorrectnessWeight)
+        # Calculate subject analysis score
+        subjectScore = sum([analysis['correctRatio'] * SubjectWeight for subject, analysis in subject_analysis.items()])
+        # Calculate time management score
+        timeManagementScore = (data['longestQuestionTime'] - 60) * TimeManagementWeight if data['longestQuestionTime'] > 60 else 0
+        # Calculate bonus points
+        bonusPoints = (60 - data['shortestQuestionTime']) * BonusWeight if data['shortestQuestionTime'] < 60 else 0
 
-        chatbot.chatbotHostData = processChatbotData(data)
+        
+        # Total momentum points
+        momentumPoints = efficiencyScore + correctnessScore + subjectScore + timeManagementScore #+ bonusPoints
+        momentumPoints = round(momentumPoints*data['totalQuestions'], 2)
+        suggestions.append(f"Your total momentum points are {momentumPoints}")
+        #suggestions.append(f"The score near 100 is good, the higher the better, the score near 0 is bad, the lower the worse.")
+        air = 20000
 
-        if (details['article']):
-            chatbot.article = details['article']
-        if (details['name']):
-            chatbot.name = details['name']
-        if (details['caching']):
-            chatbot.caching = details['caching']
-        if (details['website']):
-            chatbot.website = details['website']
-        try:
-            if (request.FILES):
-                chatbot.avatar = request.FILES['avatar']
-        except:
+        finalResult = {
+            'efficiency': efficiency,
+            'totalCorrectEfficiency': totalCorrectEfficiency,
+            'subjectAnalysis': subject_analysis,
+            'momentumPoints': momentumPoints,
+            'subjectToImprove': min(subject_analysis, key=lambda x: subject_analysis[x]['correctRatio']),
+            'topicToImprove': min(subject_analysis[min(subject_analysis, key=lambda x: subject_analysis[x]['correctRatio'])], key=lambda x: subject_analysis[max(subject_analysis, key=lambda x: subject_analysis[x]['correctRatio'])][x]),
+            'strongestSubject': max(subject_analysis, key=lambda x: subject_analysis[x]['correctRatio']),   
+            'strongestTopic': max(subject_analysis[max(subject_analysis, key=lambda x: subject_analysis[x]['correctRatio'])], key=lambda x: subject_analysis[max(subject_analysis, key=lambda x: subject_analysis[x]['correctRatio'])][x]),
+
+
+
+
+            'scores':{
+                'efficiencyScore': efficiencyScore,
+                'correctnessScore': correctnessScore,
+                'subjectScore': subjectScore,
+                'timeManagementScore': timeManagementScore,
+                'bonusPoints': bonusPoints
+            },
+            'AIR':air,    
+            
+
+            'suggestions': suggestions
+        }
+        self.request.user.profile.momentumPoints += momentumPoints
+        
+        for q in data['attemptedQuestionIDs']:
+            if self.request.user.profile.attempted.filter(id=q).exists():
+                pass
+            else:
+                self.request.user.profile.attempted.add(q)
+
+        
+
+        
+
+        self.request.user.profile.save()
+
+        return  finalResult
+
+    def analyze_subjects(self, subjects):
+        subject_analysis = {}
+        for subject, details in subjects.items():
+            for topic, stats in details.items():
+                correct_ratio = stats['correct'] / stats['totalQuestions'] if stats['totalQuestions'] > 0 else 0
+                time_per_question = stats['timeSpent'] / stats['totalQuestions'] if stats['totalQuestions'] > 0 else 0
+                subject_analysis[topic] = {
+                    'correctRatio': correct_ratio,
+                    'timePerQuestion': time_per_question,
+                    'totalQuestions': stats['totalQuestions'],
+                }
+        return subject_analysis
+
+    def generate_suggestions(self, data, subject_analysis):
+        suggestions = []
+        for subject, analysis in subject_analysis.items():
+            if(analysis['totalQuestions'] > 0):
+                suggestions.append(f"Analysis for {subject}:")
+                if analysis['correctRatio'] < 0.5:
+                    suggestions.append(f"Consider revising {subject}, as the correctness ratio is low. You got {analysis['correctRatio']} correct per question.")
+                if analysis['timePerQuestion'] > 60:  # Assuming 60 seconds is the expected average
+                    suggestions.append(f"Improve time management in {subject}. The average time spent on a question is {analysis['timePerQuestion']} seconds.")
+
+            
+                
+            
+        suggestions.append(f"The longest you spent your time was on Question No {data['longestQuestionID'] + 1} which was {data['longestQuestionTime']} seconds or {data['longestQuestionTime']/60} minutes.")
+        
+        if(data['longestQuestionTime']) > 60:
+            suggestions.append(f"Consider reducing this time spent, as it is significantly higher than the average time spent on a question. You wasted {data['longestQuestionTime'] - 60} seconds on this question")
+
+            if (data['questionWise'][str(data['longestQuestionID'])]['correct'] != True):
+                suggestions.append(f"Also, you got this question wrong, consider revising this topic, in exam consider leaving these type of questions which you are not sure about.")
+                    
+            else:
+                suggestions.append(f"you got this question right, consider reducing the time spent on this question. More practice is needed for you!.")
+        else:
+            suggestions.append(f"the longest time you spent on a question was {data['longestQuestionTime']} seconds, which is good as it is lesser than the average.")
+            
+            
+            
+            if (data['questionWise'][str(data['longestQuestionID'])]['correct']  != True):
+                    suggestions.append(f"However, you got this question wrong, consider revising this topic, please revise and check what went wrong.")
+            else:
+                    suggestions.append(f"Plus you got it right! Very good!.")
+            
+        suggestions.append(f"the shortest time you spent on a question was on Q.{int(data['shortestQuestionID']) + 1} which was {data['shortestQuestionTime']} seconds.")
+        if(data['shortestQuestionTime']) > 60:
+            suggestions.append(f"You're wasting a lot of time, the average time should be 60s/question, and the shortest you take on a question should be about 40-50s, you're taking more than 50.")
+            if (data['questionWise'][str(data['shortestQuestionID'])]['correct']   != True):
+                suggestions.append(f"Also, you got this question wrong, consider revising this topic, in exam consider leaving these type of questions which you are not sure about.")
+            else:
+                suggestions.append(f"you got this question right, but still, please reduce the time taken.")
+        elif  (data['shortestQuestionTime']) == 0:
             pass
+        else:
+            if (data['questionWise'][str(data['shortestQuestionID'])]['correct']  != True):
+                suggestions.append(f"However, you got this question wrong, please revise.")
+            else:
+                suggestions.append(f"Plus you got it right! Very good!.")
+            
+            
 
-        chatbot.save()
-        return Response({'id': chatbot.id}, status=status.HTTP_200_OK)
 
 
-class logSession(APIView):
-    permission_classes = (permissions.AllowAny, )
 
+                
+
+
+
+                    
+
+
+                
+
+
+            
+            
+            
+        
+            
+
+        return suggestions
     def post(self, request):
 
         data = request.data
-
-        try:
-            chatbot = Chatbot.objects.get(token=data['id'])
-            chatbot.logs.get(sessionID=data['sessionID'])
-        except Exception as e:
-            chatbot = Chatbot.objects.create(
-                chatbotData=request.data['body'], parent=request.user, tokenID=str(uuid.uuid4()))
-
-        return Response({'id': chatbot.id}, status=status.HTTP_200_OK)
-
-
-class OpenHelpdeskTicket(APIView):
-    permission_classes = (permissions.AllowAny, )
-
-    def post(self, request):
-
-        data = request.data
-        try:
-            chatbot = Chatbot.objects.get(tokenID=data['id'])
-            ticket = IssueTicket.objects.create(
-                user=chatbot.parent,
-                logs=data['logs'],
-                bot=chatbot,
-                state='Pending',
-                ticketID=str(uuid.uuid4().hex[:10].upper())
-            )
-            ticket.save()
-
-            return Response({'success': 'Ticket created successfully', 'issueID':   ticket.ticketID}, status=status.HTTP_200_OK)
-        except Exception as e:
-            print(e)
-            return Response({'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        analysis = self.analyze_data(data)
+        
+        return Response({ 'status': 'success', 'analysis':analysis, }, status=status.HTTP_200_OK)
 
 
 class sendEmail(APIView):
@@ -253,116 +374,41 @@ class sendEmail(APIView):
             return Response({'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class SentimentAnalysis(APIView):
-    permission_classes = (permissions.AllowAny, )
+def LandingPage(request):
+    return render(request, 'index.html')
+def BlogPage(request, pk):
+    
+    blogs = BlogPost.objects.all().order_by('-published')
+    paginator = Paginator(blogs, 8)  # Show 25 contacts per page.
 
-    def post(self, request):
+    page_number = pk
+    
+    if page_number > paginator.num_pages:
+        return redirect('https://localhost:8000/blogs/'  + str(paginator.num_pages)+"/")
+    blogss = paginator.get_page(page_number)
+    nextPage = int(pk)+1
+    prevPage = int(pk)-1
+    if nextPage > paginator.num_pages:
+        nextPage = 0
+    if prevPage < 1:
+        prevPage = 0
+    
+    
+    
 
-        data = request.data
-        text = data['text']
+    return render(request, 'blogList.html', {'blogs': blogss, 'nextPage':  nextPage, 'prevPage':  prevPage})
+def BlogDetail(request, pk):
+    print("here")
+    blog =  BlogPost.objects.get(pk=pk)
+     # new blogs 4
+    blogs = BlogPost.objects.all().order_by('-published')
+    if len(blogs) > 4:
+        blogs = blogs[:4]
+    else:
+        pass
 
-        complaint_sentences = [
-            'I want to file a complaint',
-            'I want to log a ticket',
-            'I want to report a bug',
-            'I want to report a problem',
-            'I want to log a problem',
-            'I want to issue a ticket',
-            'I want to issue a complaint',
-
-        ]
-        appointment_sentences = [
-            'I want to book an appointment',
-            'I want to schedule an appointment',
-            'I want to make an appointment',
-            'I want to book a meeting',
-            'I want to talk to support',
-            'I want to talk to a support agent',
-            'I want to talk to a support representative',
-            'I want to talk to a support executive',
-            'I want to talk to a customer service',
-        ]
-
-        try:
-
-            API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
-            headers = {
-                "Authorization": "Bearer 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"}
-
-            def query(payload):
-                response = requests.post(
-                    API_URL, headers=headers, json=payload)
-                return response.json()
-
-            complaint_score = query({
-                "inputs": {
-                    "source_sentence": text,
-                    "sentences": complaint_sentences
-                },
-            })
-
-            appointment_score = query({
-                "inputs": {
-                    "source_sentence": text,
-                    "sentences": appointment_sentences
-                },
-            })
-
-            threshold = 0.6
-
-            # maximum of each list
-            complaint_max = max(complaint_score)
-            appointment_max = max(appointment_score)
-
-            # index of maximum of each list
-            if complaint_max > threshold or complaint_max > threshold:
-                if complaint_max > appointment_max:
-                    sentiment = "complaint"
-                else:
-                    sentiment = "appointment"
-            else:
-                sentiment = "other"
-            return Response({'success': 'Sentiment analysis completed successfully', 'sentiment': sentiment}, status=status.HTTP_200_OK)
-        except Exception as e:
-            print(e)
-            return Response({'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class AutoRespond(APIView):
-    permission_classes = (permissions.AllowAny, )
-
-    def post(self, request):
-
-        data = request.data
-        print(data)
-
-        text = data['text']
-
-        try:
-
-            API_URL = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill"
-            headers = {
-                "Authorization": "Bearer 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"}
-
-            def query(payload):
-                response = requests.post(
-                    API_URL, headers=headers, json=payload)
-                return response.json()
-
-            reply = query({
-                "inputs": {
-                    "past_user_inputs": ["who are you?"],
-                    "generated_responses": ["I'm a customer service chatbot, how can I help you ?"],
-                    "text": text,
-                },
-            })
-
-            return Response({'success': 'Auto responded successfully',
-                             'reply': reply['generated_text']}, status=status.HTTP_200_OK)
-        except Exception as e:
-            print(e)
-            return Response({'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    return render(request, 'blog.html', {'blog': blog, 'blogs':blogs})
+    
 
 def ActivateAccount(request, uid, token):
     user = request.user
@@ -381,6 +427,9 @@ def ActivateAccount(request, uid, token):
 
     else:
         return redirect(website)
+    
+
+
 
 
 def RedirectToFrontEnd(request):

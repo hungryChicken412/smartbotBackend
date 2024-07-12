@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-t=u8335!zp&!=+$*qxx4ko6+=vhek90^aqr)c)f(r%esa2k096'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False") == "True"
+DEBUG =   False   
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE", "False") == "True"
 
 
@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     # Custom apps
     'profiles',
-    'rest_framework',
+    'rest_framework','django_filters',
     'tinymce',
     'blog',
     'rest_framework.authtoken',
@@ -158,7 +158,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = "/static/"
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STATIC_ROOT = os.path.join(BASE_DIR, "static_project")
+
 
 # Uncomment if you have extra static files and a directory in your GitHub repo.
 # If you don't have this directory and have this uncommented your build will fail
@@ -179,6 +180,7 @@ EMAIL_FILE_PATH = str(BASE_DIR.joinpath('sent_emails'))
 
 
 REST_FRAMEWORK = {
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
 
@@ -191,6 +193,8 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ),
     'DATETIME_FORMAT': "%m/%d/%Y %H:%M:%S",
+    
+    'PAGE_SIZE': 5
 }
 
 
@@ -226,11 +230,19 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 TINYMCE_DEFAULT_CONFIG = {
-
-
-
-
-    'theme_advanced_resizing': True,
+    "height": "320px",
+    "width": "960px",
+    "menubar": "file edit view insert format tools table help",
+    "plugins": "advlist autolink lists link image charmap print preview anchor searchreplace visualblocks code "
+    "fullscreen insertdatetime media table paste code help wordcount spellchecker",
+    "toolbar": "undo redo | bold italic underline strikethrough | fontselect fontsizeselect formatselect | alignleft "
+    "aligncenter alignright alignjustify | outdent indent |  numlist bullist checklist | forecolor "
+    "backcolor casechange permanentpen formatpainter removeformat | pagebreak | charmap emoticons | "
+    "fullscreen  preview save print | insertfile image media pageembed template link anchor codesample | "
+    "a11ycheck ltr rtl | showcomments addcomment code",
+    "custom_undo_redo_levels": 10,
+    'theme': "silver",
+'branding': False,
 
 }
 

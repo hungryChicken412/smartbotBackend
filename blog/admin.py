@@ -5,7 +5,7 @@ from .models import *
 class BlogPostAdmin(admin.ModelAdmin):
 
     fieldsets = [
-        ("Title/date", {'fields': ["title", "published", "background"]}),
+        ("Title/date", {'fields': ["title", "published"]}),
         ("Content", {"fields": ["content", "brief"]})
     ]
 

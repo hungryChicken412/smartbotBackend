@@ -1,91 +1,79 @@
+var nodes = [];
+var NODES = 10;
+var CONNECT_DIST = 200;
+var CONNECT_DIST2 = CONNECT_DIST * CONNECT_DIST;
 
-/*
-$(document).ready(function () {
+var canvas = document.getElementById("can");
+var ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth - 20;
 
-  $(window).scroll(function () {
-    let scroll = $(window).scrollTop();
-    if (scroll > 70) {
-      $(".nav-parent").addClass("nav-changeColor")
-    }
-    else {
-      $(".nav-parent").removeClass("nav-changeColor")
-    }
-  });
+var SCREENSIZE = [canvas.width, canvas.height];
 
-  $(".hamburger").click(function () {
-    $(".bar1").toggleClass("bar1-open")
-    $(".bar2").toggleClass("bar2-open")
-    $(".bar3").toggleClass("bar3-open")
-    $(".nav-menu").toggleClass("menu-open")
+for (var i = 0; i < NODES; i++) {
+	nodes.push({
+		x: Math.random() * SCREENSIZE[0],
+		y: Math.random() * SCREENSIZE[1],
+		z: Math.random() * 1 + 1,
+	});
+}
+function fill(c) {
+	ctx.fillStyle = c;
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+function line(x1, y1, x2, y2, c, w) {
+	ctx.strokeStyle = c;
+	ctx.lineWidth = w;
+	ctx.beginPath();
+	ctx.moveTo(x1, y1);
+	ctx.lineTo(x2, y2);
+	ctx.stroke();
+}
+function dot(x, y, r, c) {
+	ctx.fillStyle = c;
+	ctx.beginPath();
+	ctx.arc(x, y, r, 0, 2 * Math.PI);
+	ctx.fill();
+}
 
-    let scroll = $(window).scrollTop();
-    if (scroll < 70) {
-      $(".nav-parent").toggleClass("nav-changeColor")
-    }
-  })
+setInterval(function draw() {
+	fill("#000000");
+	for (var i = 0; i < nodes.length; i++) {
+		var node = nodes[i];
+		dot(node.x, node.y, node.z * 3, "#ffffff07");
+		node.x += node.z;
+		if (node.x > SCREENSIZE[0] + CONNECT_DIST) {
+			node.x = -CONNECT_DIST;
+			node.y = Math.random() * SCREENSIZE[1];
+			node.z = Math.random() * 1 + 1;
+		}
+		for (var ii = 0; ii < nodes.length; ii++) {
+			var dist =
+				Math.pow(nodes[i].x - nodes[ii].x, 2) +
+				Math.pow(nodes[i].y - nodes[ii].y, 2);
+			if (dist < CONNECT_DIST2) {
+				line(
+					nodes[i].x,
+					nodes[i].y,
+					nodes[ii].x,
+					nodes[ii].y,
+					"#ffffff07",
+					(1 - dist / CONNECT_DIST2) * 2.5
+				);
+			}
+		}
+	}
+}, 10);
 
-  $(".nav-item").click(function () {
+var Slides = document.getElementsByClassName("feature");
+var currentSlide = 0;
+var slideInterval = setInterval(nextSlide, 5000);
+for (var i = 0; i < Slides.length; i++) {
+	Slides[i].style.display = "none";
+}
+Slides[currentSlide].style.display = "flex";
 
-    $(".bar1").toggleClass("bar1-open")
-    $(".bar2").toggleClass("bar2-open")
-    $(".bar3").toggleClass("bar3-open")
-    $(".nav-menu").toggleClass("menu-open")
-  })
-
-  // slick 
-
-  $('.our-game-slider-parent').slick({
-    dots: true,
-    infinite: true,
-    speed: 300,
-    slidesToShow: 1,
-    adaptiveHeight: true
-  });
-
-
-})
-*/
-editAccount = document.querySelector('#edit_accButton')
-
-editAccount.addEventListener('click', (e) => {
-  $('body,html').animate({scrollTop: 0}, 100); 
-})
-
-chatbotNew = document.querySelector('#chatbotNew')
-
-chatbotNew.addEventListener('click', (e) => {
-  setTimeout(function () {
-    
-    $('body,html').animate({scrollTop: 0}, 100); 
-},2);
-})
-
-
-more_faqs = document.querySelector('#faq_more')
-fare = document.querySelector('#faqs')
-i = 0
-
-
-
-
-more_faqs.addEventListener('click', (e) => {
-  i += 1;
-  console.log("ok");
-  let doc = `<div class="faq-single" id='addedfaq_${i}' >
-  <div class="faq-question">
-    <label for="lname">Question</label><br>
-    <input type="text" id="q${i}" name="q${i}" value=""><br><br>
-  </div>
-  <div class="faq-answer">
-    <label for="lname">Answer</label><br>
-    <input type="text" id="a${i}" name="a${i}" value=""><br><br>
-  </div>
-  
-</div>
-
-`;
-
-  fare.insertAdjacentHTML("beforeend", doc);
-  
-})
-
+function nextSlide() {
+	Slides[currentSlide].style.display = "none";
+	currentSlide = (currentSlide + 1) % Slides.length;
+	Slides[currentSlide].style.display = "flex";
+}
